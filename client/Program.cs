@@ -1,5 +1,6 @@
 ﻿// Client Program
 using System;
+using System.Net.Http;
 using System.Net.Sockets;
 using System.Text;
 
@@ -16,14 +17,13 @@ public class Client
 
     public string SendMessageToServer(string request)
     {
-        NetworkStream stream = _tcpClient.GetStream();
+        INetworkStream stream = _tcpClient.GetStream();
 
         byte[] requestData = Encoding.ASCII.GetBytes(request);
         stream.Write(requestData, 0, requestData.Length);
 
-        byte[] buffer = new byte[1024];
-        int bytesRead = stream.Read(buffer, 0, buffer.Length);
-        string response = Encoding.ASCII.GetString(buffer, 0, bytesRead);
+        
+        string response = stream.Read();
 
         return response;
     }
@@ -51,7 +51,36 @@ public class Client
 public interface ITcpClient
 {
     void Connect(string serverIP, int serverPort);
-    NetworkStream GetStream();
+    INetworkStream GetStream();
+}
+
+public interface INetworkStream
+{
+    public void Write(byte[] buffer, int offset, int count);
+    public string Read();
+}
+
+public class NetworkStreamWrapper : INetworkStream
+{
+    private readonly NetworkStream _networkStream;
+
+    public NetworkStreamWrapper(TcpClient tcpClient)
+    {
+        _networkStream = tcpClient.GetStream();
+    }
+
+    public string Read()
+    {
+        byte[] buffer = new byte[1024];
+        int bytesRead = _networkStream.Read(buffer, 0, buffer.Length);
+
+        return Encoding.ASCII.GetString(buffer, 0, bytesRead);
+    }
+
+    public void Write(byte[] buffer, int offset, int count)
+    {
+        _networkStream.Write(buffer, offset, count);
+    }
 }
 
 public class TcpClientWrapper : ITcpClient
@@ -68,8 +97,8 @@ public class TcpClientWrapper : ITcpClient
         _tcpClient.Connect(serverIP, serverPort);
     }
 
-    public NetworkStream GetStream()
+    public INetworkStream GetStream()
     {
-        return _tcpClient.GetStream();
+        return new NetworkStreamWrapper(_tcpClient);
     }
 }
