@@ -22,7 +22,7 @@ public class Server
 
         while (true)
         {
-            TcpClient client = _listener.AcceptTcpClient();
+            ITcpClient client = _listener.AcceptTcpClient();
             Console.WriteLine("Client connected!");
 
             // Handle client connection in a separate thread
@@ -30,23 +30,18 @@ public class Server
         }
     }
 
-    private void HandleClient(TcpClient client)
+    public void HandleClient(ITcpClient client)
     {
-        NetworkStream stream = client.GetStream();
-        byte[] buffer = new byte[1024];
+        INetworkStream stream = client.GetStream();
 
-        while (true)
-        {
-            int bytesRead = stream.Read(buffer, 0, buffer.Length);
-            string request = Encoding.ASCII.GetString(buffer, 0, bytesRead);
-            Console.WriteLine("Received request from client: " + request);
+        string request = stream.Read();
+        Console.WriteLine("Received request from client: " + request);
 
-            string response = _requestProcessor.ProcessRequest(request);
+        string response = _requestProcessor.ProcessRequest(request);
 
-            byte[] responseData = Encoding.ASCII.GetBytes(response);
-            stream.Write(responseData, 0, responseData.Length);
-            Console.WriteLine("Sent response to client: " + response);
-        }
+        byte[] responseData = Encoding.ASCII.GetBytes(response);
+        stream.Write(responseData, 0, responseData.Length);
+        Console.WriteLine("Sent response to client: " + response);
     }
 
     public static void Main()
@@ -63,7 +58,7 @@ public class Server
 public interface ITcpListener
 {
     void Start();
-    TcpClient AcceptTcpClient();
+    ITcpClient AcceptTcpClient();
 }
 
 public interface IRequestProcessor
@@ -85,9 +80,9 @@ public class TcpListenerWrapper : ITcpListener
         _tcpListener.Start();
     }
 
-    public TcpClient AcceptTcpClient()
+    public ITcpClient AcceptTcpClient()
     {
-        return _tcpListener.AcceptTcpClient();
+        return new TcpClientWrapper(_tcpListener.AcceptTcpClient());
     }
 }
 
@@ -97,5 +92,59 @@ public class RequestProcessor : IRequestProcessor
     {
         // Process the request and return a response
         return "Hello, client! Your request was: " + request;
+    }
+}
+public interface ITcpClient
+{
+    void Connect(string serverIP, int serverPort);
+    INetworkStream GetStream();
+}
+
+public interface INetworkStream
+{
+    public void Write(byte[] buffer, int offset, int count);
+    public string Read();
+}
+
+public class NetworkStreamWrapper : INetworkStream
+{
+    private readonly NetworkStream _networkStream;
+
+    public NetworkStreamWrapper(TcpClient tcpClient)
+    {
+        _networkStream = tcpClient.GetStream();
+    }
+
+    public string Read()
+    {
+        byte[] buffer = new byte[1024];
+        int bytesRead = _networkStream.Read(buffer, 0, buffer.Length);
+
+        return Encoding.ASCII.GetString(buffer, 0, bytesRead);
+    }
+
+    public void Write(byte[] buffer, int offset, int count)
+    {
+        _networkStream.Write(buffer, offset, count);
+    }
+}
+
+public class TcpClientWrapper : ITcpClient
+{
+    private readonly TcpClient _tcpClient;
+
+    public TcpClientWrapper(TcpClient client)
+    {
+        _tcpClient = client;
+    }
+
+    public void Connect(string serverIP, int serverPort)
+    {
+        _tcpClient.Connect(serverIP, serverPort);
+    }
+
+    public INetworkStream GetStream()
+    {
+        return new NetworkStreamWrapper(_tcpClient);
     }
 }

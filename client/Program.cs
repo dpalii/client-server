@@ -33,13 +33,12 @@ public class Client
         string serverIP = "localhost";
         int serverPort = 8888;
 
-        ITcpClient tcpClient = new TcpClientWrapper();
-        Client client = new Client(tcpClient, serverIP, serverPort);
-
         while(true)
         {
             Console.WriteLine("Enter your request:");
             string? request = Console.ReadLine();
+            ITcpClient tcpClient = new TcpClientWrapper();
+            Client client = new Client(tcpClient, serverIP, serverPort);
             if (request == null) break;
             string response = client.SendMessageToServer(request);
 
